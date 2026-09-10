@@ -1,15 +1,1057 @@
 <!DOCTYPE html>
 <html lang="fr" class="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cockpit Étudiant Alternant - v4.0 IA-Autonome</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>COCKPIT ÉTUDIANT & ALTERNANT (v5.1 IA-Autonome)</title>
+  <meta name="description" content="PWA autonome : calendrier, planification horaire, shifts, budget avec plafond strict de 100€ et objectifs." />
+
+  <!-- Configuration PWA & Apple Web App plein écran -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Cockpit" />
+  <meta name="theme-color" content="#090d16" />
+
+  <!-- Manifeste PWA embarqué via Data URI (évite toute erreur 404 sur GitHub Pages) -->
+  <link rel="manifest" href='data:application/manifest+json,{"name":"Cockpit Étudiant & Alternant","short_name":"Cockpit","start_url":".","display":"standalone","background_color":"#090d16","theme_color":"#090d16","icons":[{"src":"data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>","sizes":"192x192 512x512","type":"image/svg+xml"}]}' />
+
+  <!-- Bibliothèques CDN autonomes -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#0ea5e9', 600: '#0284c7' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    html, body {
+      overscroll-behavior-y: none;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans min-h-screen selection:bg-indigo-600 selection:text-white" x-data="cockpitApp()">
-    <!-- En-tête, Planning Quotidien, Onglets 4 mois, Upload PDF, Aides LABAZ -->
+<body class="bg-slate-950 text-slate-100 min-h-screen pb-20 md:pb-8 selection:bg-cyan-500 selection:text-white antialiased">
+
+  <!-- ==================== EN-TÊTE DU COCKPIT ==================== -->
+  <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 py-3 sm:px-6 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-600 to-emerald-500 flex items-center justify-center font-bold text-xs text-white shadow-md shadow-cyan-950/40">
+            5.1
+          </div>
+          <div>
+            <h1 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+              <span>COCKPIT ÉTUDIANT & ALTERNANT</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-cyan-400 border border-slate-700 font-semibold">IA-Autonome</span>
+            </h1>
+            <div class="flex items-center gap-2 text-xs text-slate-400">
+              <span id="networkBadge" class="text-emerald-400 flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span> Stockage Local 4 Mois
+              </span>
+              <span>•</span>
+              <span id="currentMonthLabel" class="text-slate-300"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Barre de recherche globale & sélecteur de mois glissant -->
+      <div class="flex items-center gap-2">
+        <div class="relative flex-1 sm:w-64">
+          <input
+            id="globalSearch"
+            type="text"
+            placeholder="Rechercher dépense, shift, aide..."
+            class="w-full pl-3 pr-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+          />
+        </div>
+        <select
+          id="monthSelector"
+          class="bg-slate-950 border border-slate-700 text-xs text-slate-200 py-1.5 px-2 rounded-lg focus:outline-none cursor-pointer"
+        ></select>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ==================== BARRE D'ONGLETS ==================== -->
+  <div class="border-b border-slate-800 bg-slate-900/60 sticky top-[57px] z-20 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6">
+      <nav class="flex space-x-1 sm:space-x-2 overflow-x-auto py-2 no-scrollbar" id="navTabs">
+        <button data-tab="planning" class="tab-btn active flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 whitespace-nowrap">
+          <i data-lucide="calendar" class="w-3.5 h-3.5"></i> 1. Vue Générale & Planning
+        </button>
+        <button data-tab="finance" class="tab-btn flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 whitespace-nowrap">
+          <i data-lucide="dollar-sign" class="w-3.5 h-3.5"></i> 2. Entrées & Dépenses <span id="leisureNavBadge" class="hidden text-[10px] px-1 rounded bg-rose-500 text-white font-bold">! 100€</span>
+        </button>
+        <button data-tab="sandbox" class="tab-btn flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 whitespace-nowrap">
+          <i data-lucide="calculator" class="w-3.5 h-3.5"></i> 3. Sandbox & Simulations
+        </button>
+        <button data-tab="aids" class="tab-btn flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 whitespace-nowrap">
+          <i data-lucide="award" class="w-3.5 h-3.5"></i> 4. Opportunités & Aides
+        </button>
+        <button data-tab="goals" class="tab-btn flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 whitespace-nowrap">
+          <i data-lucide="target" class="w-3.5 h-3.5"></i> 5. Objectifs & Quotidien
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ==================== CONTENU DYNAMIQUE ==================== -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6" id="appMain"></main>
+
+  <!-- ==================== NAVIGATION BAS DE PAGE (MOBILE) ==================== -->
+  <div class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 px-2 py-1.5">
+    <div class="grid grid-cols-5 gap-1 text-center text-[10px]" id="mobileNav">
+      <button data-tab="planning" class="mobile-tab-btn text-cyan-400 flex flex-col items-center py-1">
+        <i data-lucide="calendar" class="w-4 h-4 mb-0.5"></i><span>Planning</span>
+      </button>
+      <button data-tab="finance" class="mobile-tab-btn text-slate-400 flex flex-col items-center py-1">
+        <i data-lucide="dollar-sign" class="w-4 h-4 mb-0.5"></i><span>Finances</span>
+      </button>
+      <button data-tab="sandbox" class="mobile-tab-btn text-slate-400 flex flex-col items-center py-1">
+        <i data-lucide="calculator" class="w-4 h-4 mb-0.5"></i><span>Sandbox</span>
+      </button>
+      <button data-tab="aids" class="mobile-tab-btn text-slate-400 flex flex-col items-center py-1">
+        <i data-lucide="award" class="w-4 h-4 mb-0.5"></i><span>Aides</span>
+      </button>
+      <button data-tab="goals" class="mobile-tab-btn text-slate-400 flex flex-col items-center py-1">
+        <i data-lucide="target" class="w-4 h-4 mb-0.5"></i><span>Objectifs</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== LOGIQUE JAVASCRIPT AUTONOME ==================== -->
+  <script>
+    // --- Configuration du stockage local persistant sur une fenêtre glissante de 4 mois ---
+    const STORAGE_KEY = 'cockpit_etudiant_v5_1';
+
+    function getMonthKey(d = new Date()) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    function getMonthLabel(key) {
+      const [y, m] = key.split('-');
+      const d = new Date(parseInt(y), parseInt(m) - 1, 1);
+      const str = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function getRolling4Months() {
+      const arr = [];
+      const now = new Date();
+      for (let i = 0; i < 4; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        arr.push(getMonthKey(d));
+      }
+      return arr;
+    }
+
+    // Aides officielles initialisées (montants plafonds indicatifs, soldes réels à 0€)
+    const CATALOG_AIDS = [
+      { id: 'aid_labaz_velo', name: 'Aide Vélo Électrique IDF (LABAZ)', org: 'Région Île-de-France', amount: 500, status: 'A_DEMANDER', desc: 'Subvention jusqu’à 500€ pour l’achat d’un vélo à assistance électrique (ex: B’TWIN E-Fold 500).' },
+      { id: 'aid_labaz_imr', name: 'Remboursement Imagine R 100€ (LABAZ)', org: 'Région Île-de-France', amount: 100, status: 'A_DEMANDER', desc: 'Aide forfaitaire de 100€ accordée aux lycéens et apprentis titulaires du pass Imagine R.' },
+      { id: 'aid_mobili', name: 'Aide Mobili-Jeune (Subvention Loyer)', org: 'Action Logement', amount: 100, status: 'A_DEMANDER', desc: 'Prise en charge de loyer jusqu’à 100€/mois pour les alternants en contrat d’apprentissage.' },
+      { id: 'aid_visale', name: 'Garantie VISALE (Caution Gratuite)', org: 'Action Logement', amount: 0, status: 'A_DEMANDER', desc: 'Caution locative gratuite sans garant physique pour accès au FJT ou studio privé.' },
+      { id: 'aid_permis', name: 'Aide Permis B Apprentis (500€)', org: 'État / CFA', amount: 500, status: 'A_DEMANDER', desc: 'Aide forfaitaire de 500€ accordée aux apprentis majeurs pour le permis de conduire B.' },
+      { id: 'aid_apl', name: 'Aide Personnalisée au Logement (APL)', org: 'CAF', amount: 210, status: 'A_DEMANDER', desc: 'Aide au logement étudiant calculée sur vos ressources réelles hébergé en FJT ou en location.' }
+    ];
+
+    // Initialisation STRICTEMENT VIDE de toute fausse dépense ou solde factice
+    function loadInitialState() {
+      const rolling = getRolling4Months();
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.months) {
+            rolling.forEach(k => {
+              if (!parsed.months[k]) parsed.months[k] = { shifts: [], transactions: [] };
+            });
+            if (!parsed.activities) parsed.activities = [];
+            if (!parsed.tasks) parsed.tasks = [];
+            if (!parsed.goals) parsed.goals = [];
+            return parsed;
+          }
+        } catch (e) { console.error(e); }
+      }
+
+      const months = {};
+      rolling.forEach(k => {
+        months[k] = { shifts: [], transactions: [] };
+      });
+
+      return {
+        version: '5.1',
+        currentMonthKey: rolling[0],
+        selectedDate: new Date().toISOString().slice(0, 10),
+        months,
+        aids: CATALOG_AIDS,
+        goals: [],
+        tasks: [],
+        activities: []
+      };
+    }
+
+    let appState = loadInitialState();
+
+    function persistState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      renderApp();
+    }
+
+    let activeTab = 'planning';
+    let searchQuery = '';
+
+    // Utilitaires de formatage
+    function formatEUR(val) {
+      return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(val || 0);
+    }
+
+    // --- Contrôleur Principal de Rendu ---
+    function renderApp() {
+      // Synchronisation du header
+      document.getElementById('currentMonthLabel').textContent = getMonthLabel(appState.currentMonthKey);
+      const sel = document.getElementById('monthSelector');
+      const rolling = getRolling4Months();
+      sel.innerHTML = rolling.map((k, i) => `
+        <option value="${k}" ${k === appState.currentMonthKey ? 'selected' : ''}>
+          ${getMonthLabel(k)} ${i === 0 ? '(En cours)' : `(M-${i})`}
+        </option>
+      `).join('');
+
+      // Plafond de loisirs vérification pour badge onglet
+      const curTxs = (appState.months[appState.currentMonthKey]?.transactions) || [];
+      const curLeisure = curTxs.filter(t => t.type === 'DEP' && t.cat === 'LOISIRS').reduce((s, t) => s + t.amount, 0);
+      const badge = document.getElementById('leisureNavBadge');
+      if (curLeisure > 100) {
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+
+      const main = document.getElementById('appMain');
+      if (activeTab === 'planning') renderPlanning(main);
+      else if (activeTab === 'finance') renderFinance(main);
+      else if (activeTab === 'sandbox') renderSandbox(main);
+      else if (activeTab === 'aids') renderAids(main);
+      else if (activeTab === 'goals') renderGoals(main);
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // =========================================================================
+    // ONGLET 1 : CALENDRIER, PLANIFICATION HORAIRE & PLANNING SHIFTS
+    // =========================================================================
+    function renderPlanning(container) {
+      const selectedDate = appState.selectedDate || new Date().toISOString().slice(0, 10);
+      const mData = appState.months[appState.currentMonthKey] || { shifts: [] };
+      const shifts = mData.shifts || [];
+
+      // Filtrage par recherche
+      const q = searchQuery.toLowerCase();
+      const filteredShifts = shifts.filter(s => !q || s.title.toLowerCase().includes(q) || s.type.toLowerCase().includes(q));
+
+      // Calculs métriques du mois
+      const totalH = shifts.reduce((s, x) => s + (x.hours || 0), 0);
+      const totalGain = shifts.reduce((s, x) => s + (x.earnings || 0), 0);
+      const totalKm = shifts.reduce((s, x) => s + (x.bikeKm || 0), 0);
+
+      // Activités et tâches pour la date sélectionnée
+      const dayActivities = (appState.activities || []).filter(a => a.date === selectedDate).sort((a,b) => a.startTime.localeCompare(b.startTime));
+      const dayShifts = shifts.filter(s => s.date === selectedDate);
+      const dayTasks = (appState.tasks || []).filter(t => t.dueDate === selectedDate);
+
+      // Calcul des 7 jours de la semaine courante
+      const [y, m, d] = selectedDate.split('-').map(Number);
+      const centerDate = new Date(y, m - 1, d);
+      const dayOfWeek = (centerDate.getDay() + 6) % 7; // Lundi = 0
+      const startOfWeek = new Date(centerDate);
+      startOfWeek.setDate(centerDate.getDate() - dayOfWeek);
+
+      const weekDays = [];
+      for (let i = 0; i < 7; i++) {
+        const cur = new Date(startOfWeek);
+        cur.setDate(startOfWeek.getDate() + i);
+        const iso = cur.toISOString().slice(0, 10);
+        weekDays.push({
+          iso,
+          label: cur.toLocaleDateString('fr-FR', { weekday: 'short' }),
+          dayNum: cur.getDate(),
+          isSelected: iso === selectedDate,
+          isToday: iso === new Date().toISOString().slice(0, 10)
+        });
+      }
+
+      container.innerHTML = `
+        <div class="space-y-6">
+
+          <!-- BLOC 1 : CALENDRIER & PLANIFICATION JOURNALIÈRE VISIBLE DÈS L'ACCÈS -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-5">
+            
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div class="flex items-center gap-3">
+                <div class="p-2 rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-600 text-white shadow-md">
+                  <i data-lucide="calendar" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                    <span>Calendrier & Planification des Horaires</span>
+                    ${selectedDate === new Date().toISOString().slice(0, 10) ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800">Aujourd’hui</span>' : ''}
+                  </h2>
+                  <p class="text-xs text-slate-400 capitalize">
+                    ${new Date(selectedDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button onclick="selectDay('${new Date().toISOString().slice(0, 10)}')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-300 rounded-lg border border-slate-700">
+                  Aujourd’hui
+                </button>
+                <button onclick="openActivityModal()" class="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-white rounded-lg shadow-md">
+                  <i data-lucide="plus" class="w-3.5 h-3.5"></i> Planifier une plage horaire
+                </button>
+              </div>
+            </div>
+
+            <!-- Bandeau navigation semaine -->
+            <div class="grid grid-cols-7 gap-1.5 sm:gap-2">
+              ${weekDays.map(w => `
+                <button onclick="selectDay('${w.iso}')" class="flex flex-col items-center py-2 px-1 rounded-xl transition border text-center ${
+                  w.isSelected
+                    ? 'bg-cyan-500/20 border-cyan-500 text-white shadow-md'
+                    : w.isToday
+                      ? 'bg-slate-800/80 border-cyan-800/60 text-cyan-300'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                }">
+                  <span class="text-[10px] font-medium uppercase">${w.label}</span>
+                  <span class="text-sm sm:text-base font-bold my-0.5 ${w.isSelected ? 'text-cyan-400' : ''}">${w.dayNum}</span>
+                </button>
+              `).join('')}
+            </div>
+
+            <!-- Double colonne : Emploi du Temps Journalier & Tâches -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-2">
+              
+              <!-- Colonne Gauche : Horaires et Plages de la Journée (7 colonnes) -->
+              <div class="lg:col-span-7 space-y-3">
+                <div class="flex items-center justify-between text-xs font-bold text-slate-300 pb-1 border-b border-slate-800/80">
+                  <span class="flex items-center gap-1.5"><i data-lucide="clock" class="w-3.5 h-3.5 text-cyan-400"></i> Emploi du temps & Plages horaires</span>
+                  <span class="text-[11px] text-slate-500">${dayActivities.length + dayShifts.length} créneau(x)</span>
+                </div>
+
+                <div class="space-y-2">
+                  ${dayActivities.length === 0 && dayShifts.length === 0 ? `
+                    <div class="p-6 text-center border border-dashed border-slate-800 rounded-xl text-xs text-slate-500">
+                      Aucune activité horaire pour cette date. Cliquez sur « Planifier une plage horaire ».
+                    </div>
+                  ` : ''}
+
+                  <!-- Affichage des Shifts programmés à cette date -->
+                  ${dayShifts.map(s => `
+                    <div class="p-2.5 rounded-xl bg-amber-950/30 border border-amber-800/50 flex items-center justify-between text-xs">
+                      <div class="flex items-center gap-3">
+                        <div class="w-12 font-mono font-bold text-amber-400 text-center">${s.startTime || '06:00'}</div>
+                        <div class="w-px h-8 bg-amber-800/60"></div>
+                        <div>
+                          <div class="font-bold text-white flex items-center gap-1.5">
+                            <span class="text-[10px] px-1.5 py-0.2 rounded bg-amber-900/60 text-amber-300 font-semibold">SHIFT ${s.type}</span>
+                            <span>${s.title}</span>
+                          </div>
+                          <div class="text-[11px] text-slate-400 mt-0.5">
+                            ${s.hours}h • +${formatEUR(s.earnings)} ${s.bikeKm > 0 ? `• 🚲 ${s.bikeKm} km` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <span class="text-[10px] font-bold text-amber-400 bg-amber-950 px-2 py-0.5 rounded border border-amber-800">Rémunéré</span>
+                    </div>
+                  `).join('')}
+
+                  <!-- Affichage des Activités horaires normales (Entreprise, Cours, Démarches) -->
+                  ${dayActivities.map(a => `
+                    <div class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between text-xs ${a.completed ? 'opacity-60' : ''}">
+                      <div class="flex items-center gap-3 flex-1 min-w-0">
+                        <button onclick="toggleActivity('${a.id}')" class="text-slate-500 hover:text-cyan-400">
+                          <i data-lucide="${a.completed ? 'check-circle-2' : 'circle'}" class="w-4 h-4 ${a.completed ? 'text-emerald-400' : ''}"></i>
+                        </button>
+                        <div class="w-12 font-mono text-center font-bold text-cyan-400">
+                          <div>${a.startTime}</div>
+                          <div class="text-[10px] text-slate-500">${a.endTime}</div>
+                        </div>
+                        <div class="w-px h-8 bg-slate-800"></div>
+                        <div class="truncate">
+                          <div class="font-bold text-white truncate ${a.completed ? 'line-through text-slate-500' : ''}">${a.title}</div>
+                          <div class="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                            <span class="text-cyan-300">[${a.category}]</span>
+                            ${a.location ? `<span>📍 ${a.location}</span>` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <button onclick="deleteActivity('${a.id}')" class="text-slate-500 hover:text-rose-400 p-1 ml-2">✕</button>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+
+              <!-- Colonne Droite : Autres à faire & Démarches du jour (5 colonnes) -->
+              <div class="lg:col-span-5 bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 space-y-3">
+                <div class="flex items-center justify-between text-xs font-bold text-slate-300">
+                  <span class="flex items-center gap-1.5"><i data-lucide="check-square" class="w-3.5 h-3.5 text-emerald-400"></i> Autres à faire ce jour (${dayTasks.length})</span>
+                </div>
+
+                <!-- Formulaire ajout rapide de to-do -->
+                <form onsubmit="handleQuickTask(event)" class="flex gap-1.5">
+                  <input type="text" id="quickTaskInput" placeholder="Ex: Envoyer quittance FJT à la CAF..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500" required />
+                  <button type="submit" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white rounded-lg transition">Ajouter</button>
+                </form>
+
+                <div class="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar pt-1">
+                  ${dayTasks.length === 0 ? '<div class="text-[11px] text-slate-500 italic py-2">Aucune démarche enregistrée pour cette journée.</div>' : ''}
+                  ${dayTasks.map(t => `
+                    <div class="p-2 rounded-lg bg-slate-900/60 border border-slate-800 flex items-center justify-between text-xs">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <button onclick="toggleTask('${t.id}')" class="text-slate-500 hover:text-emerald-400">
+                          <i data-lucide="${t.completed ? 'check-circle-2' : 'circle'}" class="w-3.5 h-3.5 ${t.completed ? 'text-emerald-400' : ''}"></i>
+                        </button>
+                        <span class="truncate ${t.completed ? 'line-through text-slate-500' : 'text-slate-200'}">${t.title}</span>
+                      </div>
+                      <button onclick="deleteTask('${t.id}')" class="text-slate-500 hover:text-rose-400 text-xs px-1">✕</button>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- BLOC 2 : SYNTHÈSE DES SHIFTS DU MOIS -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+              <div class="text-xs text-slate-400">Shifts Enregistrés</div>
+              <div class="text-2xl font-bold text-white mt-1">${shifts.length}</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">${getMonthLabel(appState.currentMonthKey)}</div>
+            </div>
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+              <div class="text-xs text-slate-400">Heures Cumulées</div>
+              <div class="text-2xl font-bold text-indigo-400 mt-1">${totalH.toFixed(1)} h</div>
+              <div class="text-[11px] ${totalH > 140 ? 'text-amber-400 font-semibold' : 'text-slate-500'} mt-0.5">
+                ${totalH > 140 ? '⚠️ Alerte charge étudiant' : 'Rythme équilibré'}
+              </div>
+            </div>
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+              <div class="text-xs text-slate-400">Gains Estimés Nets</div>
+              <div class="text-2xl font-bold text-emerald-400 mt-1">${formatEUR(totalGain)}</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">Moyenne: ${totalH > 0 ? (totalGain / totalH).toFixed(2) : '0.00'} €/h</div>
+            </div>
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+              <div class="text-xs text-slate-400">Trajets B’TWIN E-Fold 500</div>
+              <div class="text-2xl font-bold text-cyan-400 mt-1">${totalKm.toFixed(0)} km</div>
+              <div class="text-[11px] text-emerald-400 mt-0.5">~${(totalKm * 0.15).toFixed(1)} kg CO₂ évités</div>
+            </div>
+          </div>
+
+          <!-- Formulaire Ajout Shift -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+            <h3 class="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+              <i data-lucide="clock" class="w-4 h-4 text-cyan-400"></i> Ajouter une mission ou vacation (HOURA, UPS Intérim, Deliveroo, Vélo)
+            </h3>
+            <form onsubmit="handleShiftSubmit(event)" class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+              <select id="sfType" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white">
+                <option value="UPS">Intérim UPS (Quai/Tri)</option>
+                <option value="HOURA">HOURA (Préparateur)</option>
+                <option value="DELIVEROO">Deliveroo (Livraison)</option>
+                <option value="VELO">Trajet B’TWIN E-Fold</option>
+                <option value="AUTRE">Autre Mission</option>
+              </select>
+              <input type="text" id="sfTitle" placeholder="Intitulé du poste" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white" required />
+              <input type="date" id="sfDate" value="${selectedDate}" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white" required />
+              <input type="number" step="0.5" id="sfHours" placeholder="Heures (ex: 8)" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white" required />
+              <input type="number" step="0.5" id="sfRate" placeholder="Taux net (€/h)" value="12.5" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white" />
+              <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 font-bold text-white rounded-lg p-2 shadow-md">Enregistrer le Shift</button>
+            </form>
+          </div>
+
+          <!-- Liste des Shifts du Mois -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden">
+            <div class="p-3 border-b border-slate-800 text-xs font-bold text-slate-300">Vacations enregistrées pour le mois</div>
+            <div class="divide-y divide-slate-800">
+              ${filteredShifts.length === 0 ? '<div class="p-6 text-center text-xs text-slate-500">Aucun shift enregistré. Tout démarre à 0. Saisissez vos vacations au fil de l’eau.</div>' : ''}
+              ${filteredShifts.map((s, idx) => `
+                <div class="p-3 flex justify-between items-center text-xs hover:bg-slate-800/30 transition">
+                  <div>
+                    <span class="font-bold text-white">${s.title}</span>
+                    <span class="text-slate-400 ml-2">📅 ${s.date} • ${s.hours}h (${s.rate}€/h)</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="font-mono font-bold text-emerald-400">+${formatEUR(s.earnings)}</span>
+                    <button onclick="deleteShift(${idx})" class="text-slate-500 hover:text-rose-400">✕</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // ONGLET 2 : ENTRÉES & DÉPENSES & PLAFOND STRICT 100€
+    // =========================================================================
+    function renderFinance(container) {
+      const mData = appState.months[appState.currentMonthKey] || { transactions: [] };
+      const txs = mData.transactions || [];
+
+      // Filtre de recherche
+      const q = searchQuery.toLowerCase();
+      const filteredTxs = txs.filter(t => !q || t.title.toLowerCase().includes(q) || t.cat.toLowerCase().includes(q));
+
+      const inc = txs.filter(t => t.type === 'REV').reduce((s, t) => s + t.amount, 0);
+      const exp = txs.filter(t => t.type === 'DEP').reduce((s, t) => s + t.amount, 0);
+      const net = inc - exp;
+
+      // Surveillance stricte du plafond loisirs fixé à 100€
+      const leisureSpent = txs.filter(t => t.type === 'DEP' && t.cat === 'LOISIRS').reduce((s, t) => s + t.amount, 0);
+      const isExceeded = leisureSpent > 100;
+      const leisurePercent = Math.min(100, Math.round((leisureSpent / 100) * 100));
+
+      // Données de la fenêtre glissante de 4 mois pour le graphique SVG
+      const rolling = getRolling4Months().reverse(); // Ordre chronologique
+      const barStats = rolling.map(k => {
+        const m = appState.months[k] || { transactions: [] };
+        const mInc = m.transactions.filter(t => t.type === 'REV').reduce((s, t) => s + t.amount, 0);
+        const mExp = m.transactions.filter(t => t.type === 'DEP').reduce((s, t) => s + t.amount, 0);
+        return { key: k, label: getMonthLabel(k).split(' ')[0], inc: mInc, exp: mExp };
+      });
+      const maxVal = Math.max(...barStats.map(b => Math.max(b.inc, b.exp)), 100);
+
+      container.innerHTML = `
+        <div class="space-y-6">
+
+          <!-- JAUGE PLAFOND STRICT 100€ / MOIS -->
+          <div class="p-4 rounded-xl border ${isExceeded ? 'bg-rose-950/40 border-rose-600 shadow-lg shadow-rose-950/40' : leisureSpent >= 80 ? 'bg-amber-950/30 border-amber-600' : 'bg-slate-900/80 border-slate-800'}">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+              <div class="flex items-center gap-2">
+                <i data-lucide="${isExceeded ? 'alert-triangle' : 'shield-check'}" class="w-4 h-4 ${isExceeded ? 'text-rose-400' : 'text-cyan-400'}"></i>
+                <span class="font-bold text-white">Application Stricte du Plafond Loisirs & Sorties : 100,00 € / mois</span>
+              </div>
+              <div class="font-mono font-bold ${isExceeded ? 'text-rose-400' : 'text-slate-200'}">
+                ${formatEUR(leisureSpent)} / 100,00 €
+              </div>
+            </div>
+
+            <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden mt-2 border border-slate-700">
+              <div class="h-full ${isExceeded ? 'bg-rose-500' : leisureSpent >= 80 ? 'bg-amber-500' : 'bg-cyan-400'} transition-all" style="width: ${leisurePercent}%"></div>
+            </div>
+
+            <div class="flex justify-between items-center text-[11px] mt-1.5 text-slate-400">
+              <span>${leisurePercent}% utilisé</span>
+              ${isExceeded 
+                ? `<span class="text-rose-400 font-bold">DÉPASSEMENT de +${formatEUR(leisureSpent - 100)} ! Bloquez vos sorties et dépenses plaisir.</span>`
+                : `<span class="text-emerald-400 font-semibold">Reste disponible : ${formatEUR(100 - leisureSpent)}</span>`
+              }
+            </div>
+          </div>
+
+          <!-- Cartes Soldes Financiers -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-xl">
+              <div class="text-xs text-slate-400">Total Revenus Réels</div>
+              <div class="text-2xl font-bold text-emerald-400 mt-1">+${formatEUR(inc)}</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">Alternance, shifts, aides</div>
+            </div>
+            <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-xl">
+              <div class="text-xs text-slate-400">Total Dépenses Réelles</div>
+              <div class="text-2xl font-bold text-rose-400 mt-1">-${formatEUR(exp)}</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">Charges fixes et variables</div>
+            </div>
+            <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-xl">
+              <div class="text-xs text-slate-400">Solde Net (Reste à Vivre)</div>
+              <div class="text-2xl font-bold ${net >= 0 ? 'text-cyan-400' : 'text-rose-400'} mt-1">${formatEUR(net)}</div>
+              <div class="text-[11px] ${net >= 0 ? 'text-emerald-400' : 'text-rose-400'} mt-0.5">${net >= 0 ? 'Budget sain et équilibré' : 'Déficit budgétaire'}</div>
+            </div>
+          </div>
+
+          <!-- GRAPHIQUE DYNAMIQUE SUR LA FENÊTRE GLISSANTE DE 4 MOIS -->
+          <div class="bg-slate-900/80 border border-slate-800 p-4 sm:p-5 rounded-xl space-y-3">
+            <div class="flex justify-between items-center text-xs border-b border-slate-800 pb-2">
+              <span class="font-bold text-white flex items-center gap-1.5"><i data-lucide="pie-chart" class="w-4 h-4 text-cyan-400"></i> Historique Comparatif (Fenêtre de 4 mois)</span>
+              <div class="flex items-center gap-3 text-[11px]">
+                <span class="flex items-center gap-1 text-emerald-400"><span class="w-2 h-2 rounded bg-emerald-500 inline-block"></span> Revenus</span>
+                <span class="flex items-center gap-1 text-rose-400"><span class="w-2 h-2 rounded bg-rose-500 inline-block"></span> Dépenses</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-3 items-end h-36 pt-2">
+              ${barStats.map(b => {
+                const incH = maxVal > 0 ? (b.inc / maxVal) * 100 : 0;
+                const expH = maxVal > 0 ? (b.exp / maxVal) * 100 : 0;
+                const isCur = b.key === appState.currentMonthKey;
+                return `
+                  <div class="flex flex-col items-center justify-end h-full">
+                    <div class="w-full flex justify-center items-end gap-1 h-24">
+                      <div style="height: ${Math.max(4, incH)}px" class="w-1/2 max-w-[20px] bg-emerald-500 rounded-t" title="Revenus: ${formatEUR(b.inc)}"></div>
+                      <div style="height: ${Math.max(4, expH)}px" class="w-1/2 max-w-[20px] bg-rose-500 rounded-t" title="Dépenses: ${formatEUR(b.exp)}"></div>
+                    </div>
+                    <div class="mt-2 text-center text-[10px] font-semibold ${isCur ? 'text-cyan-400 font-bold' : 'text-slate-400'} capitalize">
+                      ${b.label}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- Formulaire d'ajout d'opération financière -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+            <h3 class="text-xs sm:text-sm font-bold text-white">Saisie manuelle d'une opération au centime près</h3>
+            <form onsubmit="handleTransactionSubmit(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-2.5 text-xs">
+              <select id="tfType" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white">
+                <option value="DEP">Dépense (Charge)</option>
+                <option value="REV">Revenu (Rentrée)</option>
+              </select>
+              <select id="tfCat" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white">
+                <option value="LOISIRS">🎯 Loisirs & Sorties (Plafond 100€)</option>
+                <option value="LOYER">🏠 Loyer FJT / Résidence</option>
+                <option value="COURSES">🛒 Courses & Alimentation</option>
+                <option value="TRANSPORTS">🚲 Vélo B'TWIN / Transports</option>
+                <option value="SANTE">💊 Santé & Mutuelle</option>
+                <option value="AUTRE">📦 Autre Dépense / Revenu</option>
+              </select>
+              <input type="text" id="tfTitle" placeholder="Libellé (ex: Loyer FJT, Pass Navigo...)" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white" required />
+              <input type="number" step="0.01" id="tfAmount" placeholder="Montant (€)" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-bold" required />
+              <button type="submit" class="sm:col-span-4 bg-cyan-600 hover:bg-cyan-500 font-bold text-white rounded-lg p-2 transition shadow-md">Valider la Transaction</button>
+            </form>
+          </div>
+
+          <!-- Journal des opérations -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden">
+            <div class="p-3 border-b border-slate-800 text-xs font-bold text-slate-300">Journal des opérations financières du mois</div>
+            <div class="divide-y divide-slate-800">
+              ${filteredTxs.length === 0 ? '<div class="p-6 text-center text-xs text-slate-500">Aucune opération saisie ce mois-ci. Les soldes sont strictement à 0.</div>' : ''}
+              ${filteredTxs.map((t, idx) => `
+                <div class="p-3 flex justify-between items-center text-xs hover:bg-slate-800/30 transition">
+                  <div>
+                    <span class="font-bold text-white">${t.title}</span>
+                    <span class="text-[11px] px-1.5 py-0.5 rounded ml-2 ${t.cat === 'LOISIRS' ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-slate-800 text-slate-400'}">[${t.cat}]</span>
+                  </div>
+                  <div class="flex items-center gap-3 font-mono font-bold">
+                    <span class="${t.type === 'DEP' ? 'text-rose-400' : 'text-emerald-400'}">${t.type === 'DEP' ? '-' : '+'}${formatEUR(t.amount)}</span>
+                    <button onclick="deleteTransaction(${idx})" class="text-slate-500 hover:text-rose-400">✕</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // ONGLET 3 : SANDBOX & SIMULATIONS FINANCIÈRES & LOGISTIQUES
+    // =========================================================================
+    function renderSandbox(container) {
+      container.innerHTML = `
+        <div class="space-y-6">
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <!-- Simulateur Shifts -->
+            <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-4">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i data-lucide="clock" class="w-4 h-4 text-cyan-400"></i> Simulateur d'Heures de Shift Requis
+              </h4>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Calculez le volume d’heures et de vacations (7h) nécessaires pour financer une dépense ou un projet précis.
+              </p>
+              
+              <div class="space-y-2 text-xs">
+                <div class="flex justify-between">
+                  <span>Montant visé (€) :</span>
+                  <input type="number" id="sbTarget" value="300" class="w-24 bg-slate-950 border border-slate-700 rounded p-1 text-right text-white font-bold" />
+                </div>
+                <div class="flex justify-between">
+                  <span>Taux Net par heure (€/h) :</span>
+                  <input type="number" id="sbRate" value="12.5" class="w-24 bg-slate-950 border border-slate-700 rounded p-1 text-right text-white font-bold" />
+                </div>
+              </div>
+
+              <div class="p-3 bg-slate-950 border border-cyan-800/40 rounded-xl text-xs space-y-1">
+                <div class="text-slate-400">Effort horaire calculé :</div>
+                <div class="text-xl font-bold text-cyan-400" id="sbHoursResult">24.0 heures</div>
+                <div class="text-[11px] text-slate-400" id="sbVacationsResult">Soit ~4 vacations de 7h/jour.</div>
+              </div>
+            </div>
+
+            <!-- Simulateur Logistique B'TWIN E-Fold 500 -->
+            <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-4">
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <i data-lucide="bike" class="w-4 h-4 text-emerald-400"></i> Vélo B’TWIN E-Fold 500 vs Pass Transports
+              </h4>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Modélisez vos économies nettes mensuelles en remplaçant les titres de transport par votre vélo électrique pliant.
+              </p>
+              
+              <div class="p-3 bg-slate-950 border border-emerald-800/40 rounded-xl text-xs space-y-2">
+                <div class="flex justify-between">
+                  <span>Économie face au Navigo (88,80€) :</span>
+                  <span class="font-bold text-emerald-400">+85,00 € / mois</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Coût d’une recharge complète (50 km) :</span>
+                  <span class="font-bold text-slate-200">~0,05 €</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Empreinte carbone évitée :</span>
+                  <span class="font-bold text-cyan-300">~25 kg CO₂ / mois</span>
+                </div>
+                <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+                  Le pliage rapide du B’TWIN E-Fold 500 permet d’embarquer sans surcoût dans le RER ou bus en cas d’intempéries.
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      `;
+
+      const calc = () => {
+        const tgt = parseFloat(document.getElementById('sbTarget').value) || 0;
+        const r = parseFloat(document.getElementById('sbRate').value) || 1;
+        const h = tgt / r;
+        document.getElementById('sbHoursResult').textContent = h.toFixed(1) + ' heures';
+        document.getElementById('sbVacationsResult').textContent = `Soit ~${Math.ceil(h / 7)} vacation(s) de 7h/jour.`;
+      };
+      document.getElementById('sbTarget').oninput = calc;
+      document.getElementById('sbRate').oninput = calc;
+    }
+
+    // =========================================================================
+    // ONGLET 4 : OPPORTUNITÉS & AIDES (LABAZ, VISALE, FJT, CAF)
+    // =========================================================================
+    function renderAids(container) {
+      const q = searchQuery.toLowerCase();
+      const filtered = (appState.aids || []).filter(a => !q || a.name.toLowerCase().includes(q) || a.org.toLowerCase().includes(q));
+
+      const totalPot = appState.aids.reduce((s, a) => s + (a.amount || 0), 0);
+      const totalRec = appState.aids.filter(a => a.status === 'RECUE').reduce((s, a) => s + (a.amount || 0), 0);
+
+      container.innerHTML = `
+        <div class="space-y-6">
+
+          <!-- Synthèse Subventions -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-xl">
+              <div class="text-xs text-slate-400">Total Potentiel Subventions Étudiant / Alternant</div>
+              <div class="text-2xl font-bold text-cyan-400 mt-1">${formatEUR(totalPot)}</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">LABAZ, Aides Île-de-France, Mobili-Jeune, Permis CFA</div>
+            </div>
+            <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-xl">
+              <div class="text-xs text-slate-400">Montant Déjà Perçu / Validé</div>
+              <div class="text-2xl font-bold text-emerald-400 mt-1">${formatEUR(totalRec)}</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">Fonds débloqués sur votre compte</div>
+            </div>
+          </div>
+
+          <!-- Cartes des Aides Référencées -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${filtered.map((aid, idx) => `
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between space-y-3">
+                <div>
+                  <div class="flex justify-between items-start">
+                    <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-800 text-cyan-400 border border-slate-700">${aid.org}</span>
+                    <span class="text-xs font-bold text-emerald-400 font-mono">${aid.amount > 0 ? formatEUR(aid.amount) : 'Gratuit'}</span>
+                  </div>
+                  <h4 class="text-sm font-bold text-white mt-1.5">${aid.name}</h4>
+                  <p class="text-xs text-slate-400 mt-1 leading-relaxed">${aid.desc}</p>
+                </div>
+
+                <div class="pt-2 border-t border-slate-800 flex justify-between items-center text-xs">
+                  <span class="text-slate-500">Statut de la démarche :</span>
+                  <select onchange="updateAidStatus(${idx}, this.value)" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded p-1">
+                    <option value="A_DEMANDER" ${aid.status === 'A_DEMANDER' ? 'selected' : ''}>À demander</option>
+                    <option value="EN_COURS" ${aid.status === 'EN_COURS' ? 'selected' : ''}>Dossier en cours</option>
+                    <option value="VALIDEE" ${aid.status === 'VALIDEE' ? 'selected' : ''}>Validée</option>
+                    <option value="RECUE" ${aid.status === 'RECUE' ? 'selected' : ''}>Perçue</option>
+                  </select>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // ONGLET 5 : OBJECTIFS LONG TERME & QUOTIDIEN
+    // =========================================================================
+    function renderGoals(container) {
+      container.innerHTML = `
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          <!-- Objectifs Financiers à Long Terme (Permis B, Soutien familial) -->
+          <div class="space-y-4">
+            <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-xl space-y-3">
+              <h3 class="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                <i data-lucide="target" class="w-4 h-4 text-cyan-400"></i> Nouvel Objectif d’Épargne
+              </h3>
+              <form onsubmit="handleGoalSubmit(event)" class="space-y-2 text-xs">
+                <input type="text" id="gTitle" placeholder="Intitulé (ex: Permis de conduire B, Soutien familial...)" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white" required />
+                <div class="grid grid-cols-2 gap-2">
+                  <input type="number" id="gTarget" placeholder="Montant Cible (€)" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-bold" required />
+                  <input type="number" id="gCurrent" placeholder="Déjà mis de côté (€)" value="0" class="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-bold" />
+                </div>
+                <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 font-bold text-white rounded-lg p-2 shadow-md">Créer l'Objectif</button>
+              </form>
+            </div>
+
+            <div class="space-y-2.5">
+              ${(appState.goals || []).length === 0 ? '<div class="p-6 text-center text-xs text-slate-500 bg-slate-900/40 rounded-xl border border-dashed border-slate-800">Aucun objectif créé. Fixez votre premier défi.</div>' : ''}
+              ${(appState.goals || []).map((g, idx) => {
+                const pct = Math.min(100, Math.round((g.current / g.target) * 100));
+                return `
+                  <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 space-y-2 text-xs">
+                    <div class="flex justify-between items-center font-bold text-white">
+                      <span>${g.title}</span>
+                      <span class="text-emerald-400 font-mono">${formatEUR(g.current)} / ${formatEUR(g.target)}</span>
+                    </div>
+                    <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+                      <div class="h-full bg-cyan-400 transition-all" style="width: ${pct}%"></div>
+                    </div>
+                    <div class="flex justify-between items-center text-[11px] pt-1">
+                      <span class="text-slate-400">${pct}% atteint</span>
+                      <div class="flex items-center gap-1.5">
+                        <button onclick="depositGoal(${idx}, 50)" class="px-2 py-0.5 rounded bg-slate-800 text-cyan-300 hover:bg-slate-700 font-medium">+50 €</button>
+                        <button onclick="depositGoal(${idx}, 100)" class="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 hover:bg-cyan-900 font-medium">+100 €</button>
+                        <button onclick="deleteGoal(${idx})" class="p-1 text-slate-500 hover:text-rose-400 ml-1">✕</button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- Démarches Quotidiennes Globales -->
+          <div class="space-y-4">
+            <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-xl space-y-3">
+              <h3 class="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                <i data-lucide="check-square" class="w-4 h-4 text-emerald-400"></i> Nouvelle Démarche Quotidienne
+              </h3>
+              <form onsubmit="handleTaskSubmit(event)" class="space-y-2 text-xs">
+                <input type="text" id="tkTitle" placeholder="Démarche (ex: Déclaration prime d'activité, révision vélo...)" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white" required />
+                <input type="date" id="tkDueDate" value="${appState.selectedDate}" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white" />
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold text-white rounded-lg p-2 shadow-md">Enregistrer la Démarche</button>
+              </form>
+            </div>
+
+            <div class="space-y-2">
+              ${(appState.tasks || []).length === 0 ? '<div class="p-6 text-center text-xs text-slate-500 bg-slate-900/40 rounded-xl border border-dashed border-slate-800">Aucune démarche enregistrée.</div>' : ''}
+              ${(appState.tasks || []).map((t, idx) => `
+                <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 flex justify-between items-center text-xs">
+                  <div class="flex items-center gap-2.5">
+                    <button onclick="toggleTask('${t.id}')" class="text-slate-500 hover:text-emerald-400">
+                      <i data-lucide="${t.completed ? 'check-circle-2' : 'circle'}" class="w-4 h-4 ${t.completed ? 'text-emerald-400' : ''}"></i>
+                    </button>
+                    <span class="${t.completed ? 'line-through text-slate-500' : 'text-slate-100 font-medium'}">${t.title}</span>
+                  </div>
+                  <button onclick="deleteTask('${t.id}')" class="text-slate-500 hover:text-rose-400">✕</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // GESTIONNAIRES D'ÉVÉNEMENTS & MUTATIONS D'ÉTAT
+    // =========================================================================
+    window.selectDay = (iso) => {
+      appState.selectedDate = iso;
+      persistState();
+    };
+
+    window.toggleActivity = (id) => {
+      appState.activities = (appState.activities || []).map(a => a.id === id ? { ...a, completed: !a.completed } : a);
+      persistState();
+    };
+    window.deleteActivity = (id) => {
+      appState.activities = (appState.activities || []).filter(a => a.id !== id);
+      persistState();
+    };
+
+    window.toggleTask = (id) => {
+      appState.tasks = (appState.tasks || []).map(t => t.id === id ? { ...t, completed: !t.completed } : t);
+      persistState();
+    };
+    window.deleteTask = (id) => {
+      appState.tasks = (appState.tasks || []).filter(t => t.id !== id);
+      persistState();
+    };
+
+    window.handleShiftSubmit = (e) => {
+      e.preventDefault();
+      const h = parseFloat(document.getElementById('sfHours').value) || 0;
+      const rate = parseFloat(document.getElementById('sfRate').value) || 0;
+      const shift = {
+        id: 's_' + Date.now(),
+        type: document.getElementById('sfType').value,
+        title: document.getElementById('sfTitle').value,
+        date: document.getElementById('sfDate').value,
+        hours: h,
+        rate: rate,
+        earnings: h * rate,
+        bikeKm: 12
+      };
+      if (!appState.months[appState.currentMonthKey]) {
+        appState.months[appState.currentMonthKey] = { shifts: [], transactions: [] };
+      }
+      appState.months[appState.currentMonthKey].shifts.unshift(shift);
+      persistState();
+    };
+    window.deleteShift = (idx) => {
+      appState.months[appState.currentMonthKey].shifts.splice(idx, 1);
+      persistState();
+    };
+
+    window.handleTransactionSubmit = (e) => {
+      e.preventDefault();
+      const tx = {
+        id: 't_' + Date.now(),
+        type: document.getElementById('tfType').value,
+        cat: document.getElementById('tfCat').value,
+        title: document.getElementById('tfTitle').value,
+        amount: parseFloat(document.getElementById('tfAmount').value) || 0
+      };
+      if (!appState.months[appState.currentMonthKey]) {
+        appState.months[appState.currentMonthKey] = { shifts: [], transactions: [] };
+      }
+      appState.months[appState.currentMonthKey].transactions.unshift(tx);
+      persistState();
+    };
+    window.deleteTransaction = (idx) => {
+      appState.months[appState.currentMonthKey].transactions.splice(idx, 1);
+      persistState();
+    };
+
+    window.updateAidStatus = (idx, st) => {
+      appState.aids[idx].status = st;
+      persistState();
+    };
+
+    window.handleGoalSubmit = (e) => {
+      e.preventDefault();
+      appState.goals.push({
+        id: 'g_' + Date.now(),
+        title: document.getElementById('gTitle').value,
+        target: parseFloat(document.getElementById('gTarget').value) || 0,
+        current: parseFloat(document.getElementById('gCurrent').value) || 0
+      });
+      persistState();
+    };
+    window.depositGoal = (idx, amt) => {
+      appState.goals[idx].current += amt;
+      persistState();
+    };
+    window.deleteGoal = (idx) => {
+      appState.goals.splice(idx, 1);
+      persistState();
+    };
+
+    window.handleTaskSubmit = (e) => {
+      e.preventDefault();
+      appState.tasks.push({
+        id: 'tk_' + Date.now(),
+        title: document.getElementById('tkTitle').value,
+        dueDate: document.getElementById('tkDueDate').value,
+        completed: false
+      });
+      persistState();
+    };
+    window.handleQuickTask = (e) => {
+      e.preventDefault();
+      const input = document.getElementById('quickTaskInput');
+      if (!input.value.trim()) return;
+      appState.tasks.push({
+        id: 'tk_' + Date.now(),
+        title: input.value.trim(),
+        dueDate: appState.selectedDate,
+        completed: false
+      });
+      input.value = '';
+      persistState();
+    };
+
+    // Boîte modale de planification horaire rapide
+    window.openActivityModal = () => {
+      const title = prompt("Titre de l'activité horaire (ex: Entreprise alternance, Shift UPS, Cours CFA) :", "Alternance Entreprise");
+      if (!title) return;
+      const start = prompt("Heure de début (HH:MM) :", "09:00") || "09:00";
+      const end = prompt("Heure de fin (HH:MM) :", "17:30") || "17:30";
+      appState.activities.push({
+        id: 'act_' + Date.now(),
+        date: appState.selectedDate,
+        startTime: start,
+        endTime: end,
+        title: title,
+        category: 'ALTERNANCE',
+        completed: false
+      });
+      persistState();
+    };
+
+    // Gestion du basculement d'onglets
+    document.querySelectorAll('.tab-btn, .mobile-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeTab = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.className = 'tab-btn flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 whitespace-nowrap';
+        });
+        const targetBtn = document.querySelector(`.tab-btn[data-tab="${activeTab}"]`);
+        if (targetBtn) {
+          targetBtn.className = 'tab-btn active flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 whitespace-nowrap';
+        }
+        document.querySelectorAll('.mobile-tab-btn').forEach(b => {
+          b.className = `mobile-tab-btn flex flex-col items-center py-1 ${b.dataset.tab === activeTab ? 'text-cyan-400 font-bold' : 'text-slate-400'}`;
+        });
+        renderApp();
+      });
+    });
+
+    // Écouteur de recherche instantanée
+    document.getElementById('globalSearch').addEventListener('input', (e) => {
+      searchQuery = e.target.value;
+      renderApp();
+    });
+
+    // Écouteur de changement de mois
+    document.getElementById('monthSelector').addEventListener('change', (e) => {
+      appState.currentMonthKey = e.target.value;
+      persistState();
+    });
+
+    // Lancement Initial
+    renderApp();
+  </script>
 </body>
 </html>
